@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Exploración Anatómica Interactiva</title>
+    <style>
+        :root {
+            --dark-bg: #040814;
+            --panel-bg: rgba(9, 16, 36, 0.9);
+            --neon-cyan: #00f0ff;
+            --neon-blue: #1e40af;
+            --text-white: #f8fafc;
+            --border-color: rgba(0, 240, 255, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: var(--text-white);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-layout {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* PANEL IZQUIERDO */
+        .left-sidebar {
+            width: 320px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+        }
+
+        .brand-title {
+            font-size: 1.4rem;
+            color: var(--neon-cyan);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        .menu-label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            margin-top: 10px;
+        }
+
+        .sys-button {
+            width: 100%;
+            background: rgba(30, 64, 175, 0.2);
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            color: var(--text-white);
+            padding: 12px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            text-align: left;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .sys-button:hover, .sys-button.active {
+            background: var(--neon-cyan);
+            color: #040814;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+            border-color: var(--neon-cyan);
+        }
+
+        /* CENTRO: VISUALIZADOR DEL CUERPO */
+        .center-viewer {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle, #0f172a 0%, #040814 100%);
+            padding: 20px;
+        }
+
+        .body-wrapper {
+            position: relative;
+            width: 380px;
+            height: 650px;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+
+        .layer-view {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            top: 0;
+            left: 0;
+        }
+
+        .layer-view.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Filtrado Dinámico de Género por CSS */
+        [data-gender] {
+            display: none !important;
+        }
+        body[data-current-gender="masculino"] [data-gender="masculino"] {
+            display: inline !important;
+        }
+        body[data-current-gender="femenino"] [data-gender="femenino"] {
+            display: inline !important;
+        }
+
+        /* Control de visibilidad según orientación */
+        .body-wrapper[data-view="frontal"] .rear-brain {
+            display: none !important;
+        }
+        .body-wrapper[data-view="posterior"] .face-element {
+            display: none !important;
+        }
+
+        /* Estilos e interacción de las piezas anatómicas */
+        .anatomy-part {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        path.anatomy-part:hover, 
+        rect.anatomy-part:hover, 
+        ellipse.anatomy-part:hover, 
+        circle.anatomy-part:hover,
+        g.anatomy-part:hover * {
+            fill-opacity: 0.85 !important;
+            stroke: var(--neon-cyan) !important;
+            stroke-width: 2px !important;
+            filter: drop-shadow(0 0 8px var(--neon-cyan));
+        }
+
+        line.anatomy-part:hover {
+            stroke: var(--neon-cyan) !important;
+            stroke-width: 8px !important;
+            filter: drop-shadow(0 0 8px var(--neon-cyan));
+        }
+
+        /* PANEL DERECHO */
+        .right-sidebar {
+            width: 420px;
+            background: var(--panel-bg);
+            border-left: 1px solid var(--border-color);
+            padding: 30px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .clinical-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 4px solid var(--neon-cyan);
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .part-header {
+            font-size: 1.6rem;
+            color: #ffffff;
+            margin-bottom: 5px;
+        }
+
+        .system-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(0, 240, 255, 0.15);
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            font-size: 0.75rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .info-block {
+            margin-bottom: 15px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+
+        .info-block strong {
+            color: var(--neon-cyan);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .hud-status {
+            position: absolute;
+            bottom: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            border: 1px dashed var(--border-color);
+            z-index: 5;
+        }
+    </style>
+</head>
+<body data-current-gender="masculino">
+
+    <div class="app-layout">
+        
+        <div class="left-sidebar">
+            <div class="brand-title">ANATOMÍA 360°</div>
+            
+            <div>
+                <div class="menu-label">Género del Modelo:</div>
+                <button class="sys-button active" id="btn-gen-masc" onclick="changeGender('masculino')"><span>Masculino</span> 🧑</button>
+                <button class="sys-button" id="btn-gen-fem" onclick="changeGender('femenino')"><span>Femenino</span> 👩</button>
+            </div>
+
+            <div>
+                <div class="menu-label">Filtrar Capa Histológica:</div>
+                <button class="sys-button active" id="btn-layer-piel" onclick="changeActiveSystem('piel', this)"><span>Epidermis [Piel]</span> 🔘</button>
+                <button class="sys-button" onclick="changeActiveSystem('organos', this)"><span>Visceral [Órganos]</span> 🔘</button>
+                <button class="sys-button" onclick="changeActiveSystem('huesos', this)"><span>Osteología [Huesos]</span> 🔘</button>
+            </div>
+
+            <div style="margin-top: auto;">
+                <div class="menu-label">Rotación de Cámara 360°:</div>
+                <button class="sys-button" style="text-align: center; justify-content: center;" onclick="toggleRotation()">🔄 Girar Cuerpo (Frente / Espalda)</button>
+            </div>
+        </div>
+
+        <div class="center-viewer">
+            <div class="hud-status" id="hud-angle">Orientación: Vista Frontal (0°)</div>
+            
+            <div class="body-wrapper" id="cuerpo-interactivo" data-view="frontal">
+                
+                <svg id="view-piel" class="layer-view active" viewBox="0 0 200 500">
+                    <ellipse class="anatomy-part" data-name="Cabeza" fill="#e8b595" cx="100" cy="50" rx="30" ry="35"/>
+                    <rect class="anatomy-part" data-name="Cuello" fill="#deaa8a" x="88" y="85" width="24" height="25"/>
+                    
+                    <g data-gender="masculino">
+                        <circle class="anatomy-part" data-name="Hombro Izquierdo" fill="#d49f7f" cx="55" cy="115" r="15"/>
+                        <circle class="anatomy-part" data-name="Hombro Derecho" fill="#d49f7f" cx="145" cy="115" r="15"/>
+                        <path class="anatomy-part" data-name="Pecho y Tórax" fill="#e8b595" d="M55,115 L145,115 L138,200 L62,200 Z"/>
+                        <rect class="anatomy-part" data-name="Abdomen" fill="#deaa8a" x="62" y="200" width="76" height="70"/>
+                        <path class="anatomy-part" data-name="Pelvis" fill="#c99373" d="M62,270 L138,270 L128,320 L72,320 Z"/>
+                    </g>
+
+                    <g data-gender="femenino">
+                        <circle class="anatomy-part" data-name="Hombro Izquierdo" fill="#e1b392" cx="62" cy="115" r="12"/>
+                        <circle class="anatomy-part" data-name="Hombro Derecho" fill="#e1b392" cx="138" cy="115" r="12"/>
+                        <path class="anatomy-part" data-name="Pecho y Tórax" fill="#f0c0a0" d="M62,115 L138,115 L132,190 L68,190 Z"/>
+                        <circle class="anatomy-part" data-name="Pecho y Tórax" fill="#e6b797" cx="83" cy="145" r="13"/>
+                        <circle class="anatomy-part" data-name="Pecho y Tórax" fill="#e6b797" cx="117" cy="145" r="13"/>
+                        <path class="anatomy-part" data-name="Abdomen" fill="#e1b392" d="M68,190 L132,190 L138,260 L62,260 Z"/>
+                        <path class="anatomy-part" data-name="Pelvis" fill="#d4a381" d="M62,260 L138,260 L132,320 L68,320 Z"/>
+                    </g>
+
+                    <path class="anatomy-part" data-name="Brazo Izquierdo" fill="#e8b595" d="M46,115 L60,120 L45,210 L33,200 Z"/>
+                    <path class="anatomy-part" data-name="Brazo Derecho" fill="#e8b595" d="M140,120 L154,115 L167,200 L155,210 Z"/>
+                    <path class="anatomy-part" data-name="Antebrazo Izquierdo" fill="#deaa8a" d="M33,200 L45,210 L35,290 L25,285 Z"/>
+                    <path class="anatomy-part" data-name="Antebrazo Derecho" fill="#deaa8a" d="M155,210 L167,200 L175,285 L165,290 Z"/>
+                    <circle class="anatomy-part" data-name="Mano Izquierda" fill="#c99373" cx="28" cy="300" r="10"/>
+                    <circle class="anatomy-part" data-name="Mano Derecho" fill="#c99373" cx="172" cy="300" r="10"/>
+                    
+                    <path class="anatomy-part" data-name="Muslo Izquierdo" fill="#e8b595" d="M75,320 L100,320 L95,410 L72,410 Z"/>
+                    <path class="anatomy-part" data-name="Muslo Derecho" fill="#e8b595" d="M100,320 L125,320 L128,410 L105,410 Z"/>
+                    <circle class="anatomy-part" data-name="Rodilla Izquierda" fill="#deaa8a" cx="83" cy="420" r="10"/>
+                    <circle class="anatomy-part" data-name="Rodilla Derecha" fill="#deaa8a" cx="117" cy="420" r="10"/>
+                    <path class="anatomy-part" data-name="Pantorrilla Izquierda" fill="#c99373" d="M74,430 L92,430 L88,485 L76,485 Z"/>
+                    <path class="anatomy-part" data-name="Pantorrilla Derecho" fill="#c99373" d="M108,430 L126,430 L124,485 L112,485 Z"/>
+                    <rect class="anatomy-part" data-name="Pie Izquierdo" fill="#deaa8a" x="70" y="485" width="18" height="12" rx="3"/>
+                    <rect class="anatomy-part" data-name="Pie Derecho" fill="#deaa8a" x="112" y="485" width="18" height="12" rx="3"/>
+                </svg>
+
+                <svg id="view-organos" class="layer-view" viewBox="0 0 200 500">
+                    <path data-gender="masculino" d="M100,12 C122,12 132,18 132,48 C132,70 124,82 115,86 L113,100 C135,102 158,106 160,122 C162,138 155,185 155,205 C155,225 144,242 140,268 C136,294 135,316 130,325 L124,410 L126,482 L110,482 L106,435 L100,432 L94,435 L90,482 L74,482 L76,410 L70,325 C65,316 64,294 60,268 C56,242 45,225 45,205 C45,185 38,138 40,122 C42,106 65,102 87,100 L85,86 C76,82 68,70 68,48 C68,18 78,12 100,12 Z" fill="rgba(0, 240, 255, 0.015)" stroke="rgba(0, 240, 255, 0.25)" stroke-width="1.2" stroke-dasharray="3,2"/>
+                    <path data-gender="femenino" d="M100,15 C118,15 127,21 127,49 C127,69 121,81 113,85 L111,99 C128,102 146,106 148,122 C150,138 143,180 143,198 C143,218 128,236 128,260 C128,288 139,314 134,325 L124,410 L126,482 L110,482 L106,435 L100,432 L94,435 L90,482 L74,482 L76,410 L66,325 C61,314 72,288 72,260 C72,236 57,218 57,198 C57,180 50,138 52,122 C54,106 72,102 89,99 L87,85 C79,81 73,69 73,49 C73,21 82,15 100,15 Z" fill="rgba(236, 72, 153, 0.015)" stroke="rgba(236, 72, 153, 0.3)" stroke-width="1.2" stroke-dasharray="3,2"/>
+                    
+                    <path class="anatomy-part" data-name="Cerebro (Córtex)" fill="#ff9ebb" d="M100,20 C78,20 74,32 74,50 C74,56 82,60 90,56 C95,54 100,55 105,56 C115,60 126,56 126,50 C126,32 122,20 100,20 Z"/>
+                    <ellipse class="anatomy-part rear-brain" data-name="Diencéfalo y Sistema Límbico" fill="#f43f5e" cx="100" cy="46" rx="11" ry="8"/>
+                    <path class="anatomy-part rear-brain" data-name="Cerebelo" fill="#be123c" d="M85,55 C80,55 76,60 80,65 C85,69 95,67 98,62 C94,58 90,55 85,55 Z M115,55 C120,55 124,60 120,65 C115,69 105,67 102,62 C106,58 110,55 115,55 Z"/>
+                    <circle class="anatomy-part face-element" data-name="Ojos" fill="#60a5fa" cx="88" cy="42" r="4.5"/>
+                    <circle class="anatomy-part face-element" data-name="Ojos" fill="#60a5fa" cx="112" cy="42" r="4.5"/>
+                    <polygon class="anatomy-part face-element" data-name="Nariz" fill="#f472b6" points="100,40 96,52 104,52"/>
+                    <ellipse class="anatomy-part face-element" data-name="Boca y Cavidad Oral" fill="#e11d48" cx="100" cy="62" rx="9" ry="3"/>
+                    <ellipse class="anatomy-part face-element" data-name="Tímpanos (Oído Interno)" fill="#a7f3d0" cx="72" cy="48" rx="2" ry="4"/>
+                    <ellipse class="anatomy-part face-element" data-name="Tímpanos (Oído Interno)" fill="#a7f3d0" cx="128" cy="48" rx="2" ry="4"/>
+                    <path class="anatomy-part" data-name="Tronco Encefálico" fill="#de708f" d="M97,60 L103,60 L101,80 L99,80 Z"/>
+                    <polygon class="anatomy-part" data-name="Tráquea" fill="#7dd3fc" points="97,80 103,80 102,110 98,110"/>
+                    <path class="anatomy-part" data-name="Pulmones" fill="#f87171" d="M96,112 C85,110 65,120 65,150 C65,180 80,185 94,180 Z"/>
+                    <path class="anatomy-part" data-name="Pulmones" fill="#f87171" d="M104,112 C115,110 135,120 135,150 C135,180 120,185 106,180 Z"/>
+                    <path class="anatomy-part" data-name="Corazón" fill="#dc2626" d="M95,135 C90,125 102,120 102,130 C102,120 114,125 109,135 L102,145 Z"/>
+                    <path class="anatomy-part" data-name="Hígado" fill="#991b1b" d="M68,190 C75,182 110,182 115,192 L112,208 C90,215 75,205 68,190 Z"/>
+                    <path class="anatomy-part" data-name="Estómago" fill="#f472b6" d="M112,192 C125,190 135,200 130,215 C120,225 105,220 108,208 Z"/>
+                    <rect class="anatomy-part" data-name="Páncreas" fill="#fbbf24" x="95" y="212" width="28" height="8" rx="3"/>
+                    <ellipse class="anatomy-part" data-name="Riñones" fill="#7f1d1d" cx="78" cy="225" rx="6" ry="10" transform="rotate(-10 78 225)"/>
+                    <ellipse class="anatomy-part" data-name="Riñones" fill="#7f1d1d" cx="122" cy="225" rx="6" ry="10" transform="rotate(10 122 225)"/>
+                    <path class="anatomy-part" data-name="Intestino Grueso" fill="#c2410c" d="M72,228 L128,228 L130,265 L122,265 L120,236 L80,236 L78,265 L72,265 Z" stroke="#9a3412" stroke-width="1"/>
+                    <rect class="anatomy-part" data-name="Intestino Delgado" fill="#fb923c" x="81" y="238" width="38" height="26" rx="6"/>
+                    
+                    <g data-gender="masculino">
+                        <ellipse class="anatomy-part" data-name="Vejiga" fill="#eab308" cx="100" cy="280" rx="10" ry="7"/>
+                        <circle class="anatomy-part" data-name="Aparato Reproductor Masculino" fill="#a855f7" cx="100" cy="292" r="5"/>
+                        <ellipse class="anatomy-part" data-name="Aparato Reproductor Masculino" fill="#c084fc" cx="95" cy="312" rx="4" ry="6"/>
+                        <ellipse class="anatomy-part" data-name="Aparato Reproductor Masculino" fill="#c084fc" cx="105" cy="312" rx="4" ry="6"/>
+                    </g>
+                    <g data-gender="femenino">
+                        <ellipse class="anatomy-part" data-name="Vejiga" fill="#eab308" cx="100" cy="282" rx="9" ry="6"/>
+                        <path class="anatomy-part" data-name="Útero y Ovarios" fill="#ec4899" d="M94,272 L106,272 L103,292 L97,292 Z"/>
+                        <path class="anatomy-part" data-name="Útero y Ovarios" d="M82,270 C90,270 94,273 94,273 M118,270 C110,270 106,273 106,273" fill="none" stroke="#f472b6" stroke-width="2"/>
+                        <circle class="anatomy-part" data-name="Útero y Ovarios" fill="#fbcfe8" cx="80" cy="270" r="4"/>
+                        <circle class="anatomy-part" data-name="Útero y Ovarios" fill="#fbcfe8" cx="120" cy="270" r="4"/>
+                    </g>
+
+                    <path class="anatomy-part" data-name="Músculos del Brazo Izquierdo" fill="#b91c1c" d="M48,118 L58,122 L44,208 L35,198 Z"/>
+                    <path class="anatomy-part" data-name="Músculos del Brazo Derecho" fill="#b91c1c" d="M142,122 L152,118 L165,198 L156,208 Z"/>
+                    <path class="anatomy-part" data-name="Músculos del Antebrazo Izquierdo" fill="#991b1b" d="M35,202 L44,208 L36,286 L27,282 Z"/>
+                    <path class="anatomy-part" data-name="Músculos del Antebrazo Derecho" fill="#991b1b" d="M156,208 L165,202 L173,282 L164,286 Z"/>
+                    <path class="anatomy-part" data-name="Músculos del Muslo Izquierdo" fill="#b91c1c" d="M76,322 L98,322 L93,408 L74,408 Z"/>
+                    <path class="anatomy-part" data-name="Músculos del Muslo Derecho" fill="#b91c1c" d="M102,322 L124,322 L126,408 L107,408 Z"/>
+                    <path class="anatomy-part" data-name="Músculos de la Pantorrilla Izquierda" fill="#991b1b" d="M75,432 L91,432 L87,482 L77,482 Z"/>
+                    <path class="anatomy-part" data-name="Músculos de la Pantorrilla Derecha" fill="#991b1b" d="M109,432 L125,432 L123,482 L113,482 Z"/>
+                </svg>
+
+                <svg id="view-huesos" class="layer-view" viewBox="0 0 200 500">
+                    
+                    <g class="anatomy-part" data-name="Cráneo">
+                        <path d="M100,24 C80,24 78,38 78,52 C78,63 83,67 86,70 L84,74 L92,72 L100,75 L108,72 L116,74 L114,70 C117,67 122,63 122,52 C122,38 120,24 100,24 Z" fill="#e2e8f0"/>
+                        <ellipse class="face-element" cx="89" cy="50" rx="5.5" ry="6.5" fill="#040814"/>
+                        <ellipse class="face-element" cx="111" cy="50" rx="5.5" ry="6.5" fill="#040814"/>
+                        <polygon class="face-element" points="100,56 96,65 104,65" fill="#040814"/>
+                    </g>
+                    
+                    <rect class="anatomy-part" data-name="Mandíbula" fill="#cbd5e1" x="90" y="74" width="20" height="9" rx="2"/>
+                    
+                    <g class="anatomy-part" data-name="Vértebras Cervicales">
+                        <rect x="97" y="85" width="6" height="4" rx="1" fill="#cbd5e1"/>
+                        <rect x="96" y="91" width="8" height="4" rx="1" fill="#94a3b8"/>
+                        <rect x="97" y="97" width="6" height="4" rx="1" fill="#cbd5e1"/>
+                    </g>
+                    
+                    <g class="anatomy-part" data-name="Vértebras Lumbares">
+                        <rect x="96" y="190" width="8" height="6" rx="1" fill="#cbd5e1"/>
+                        <rect x="95" y="200" width="10" height="6" rx="1" fill="#94a3b8"/>
+                        <rect x="96" y="210" width="8" height="6" rx="1" fill="#cbd5e1"/>
+                        <rect x="95" y="220" width="10" height="6" rx="1" fill="#94a3b8"/>
+                        <rect x="96" y="230" width="8" height="6" rx="1" fill="#cbd5e1"/>
+                        <rect x="95" y="240" width="10" height="6" rx="1" fill="#94a3b8"/>
+                    </g>
+                    
+                    <path class="anatomy-part" data-name="Clavícula y Escápula" d="M62,110 L94,113" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+                    <path class="anatomy-part" data-name="Clavícula y Escápula" d="M138,110 L106,113" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+                    <rect class="anatomy-part" data-name="Esternón" fill="#f1f5f9" x="97" y="116" width="6" height="65" rx="2"/>
+                    
+                    <g class="anatomy-part" data-name="Costillas">
+                        <path d="M74,125 C82,133 94,133 96,126 M126,125 C118,133 106,133 104,126" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M71,140 C81,150 94,150 96,141 M129,140 C119,150 106,150 104,141" fill="none" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M70,155 C80,167 94,167 96,156 M130,155 C120,167 106,167 104,156" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+                        <path d="M72,170 C82,182 94,182 96,171 M128,170 C118,182 106,182 104,171" fill="none" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round"/>
+                    </g>
+                    
+                    <path data-gender="masculino" class="anatomy-part" data-name="Pelvis" fill="#cbd5e1" d="M70,255 L130,255 L122,295 L78,295 Z" stroke="#94a3b8" stroke-width="1"/>
+                    <path data-gender="femenino" class="anatomy-part" data-name="Pelvis" fill="#cbd5e1" d="M64,255 L136,255 L125,300 L75,300 Z" stroke="#94a3b8" stroke-width="1"/>
+
+                    <line class="anatomy-part" data-name="Húmero" x1="56" y1="116" x2="42" y2="190" stroke="#f1f5f9" stroke-width="5.5" stroke-linecap="round"/>
+                    <line class="anatomy-part" data-name="Radio y Cúbito" x1="40" y1="196" x2="31" y2="275" stroke="#cbd5e1" stroke-width="4.5" stroke-linecap="round"/>
+                    <ellipse class="anatomy-part" data-name="Carpos (Muñeca)" fill="#64748b" cx="30" cy="281" rx="4" ry="3"/>
+                    
+                    <g class="anatomy-part" data-name="Falanges (Dedos)">
+                        <path d="M32,283 L38,289 L42,292" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+                        <path d="M30,284 L27,294 L25,301" stroke="#f1f5f9" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+                        <path d="M29,284 L24,295 L21,303" stroke="#cbd5e1" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+                        <path d="M28,283 L21,293 L18,300" stroke="#f1f5f9" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+                        <path d="M27,282 L18,290 L14,295" stroke="#cbd5e1" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+                    </g>
+
+                    <line class="anatomy-part" data-name="Húmero" x1="144" y1="116" x2="158" y2="190" stroke="#f1f5f9" stroke-width="5.5" stroke-linecap="round"/>
+                    <line class="anatomy-part" data-name="Radio y Cúbito" x1="160" y1="196" x2="169" y2="275" stroke="#cbd5e1" stroke-width="4.5" stroke-linecap="round"/>
+                    <ellipse class="anatomy-part" data-name="Carpos (Muñeca)" fill="#64748b" cx="170" cy="281" rx="4" ry="3"/>
+                    
+                    <g class="anatomy-part" data-name="Falanges (Dedos)">
+                        <path d="M168,283 L162,289 L158,292" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+                        <path d="M170,284 L173,294 L175,301" stroke="#f1f5f9" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+                        <path d="M171,284 L176,295 L179,303" stroke="#cbd5e1" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+                        <path d="M172,283 L179,293 L182,300" stroke="#f1f5f9" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+                        <path d="M173,282 L182,290 L186,295" stroke="#cbd5e1" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+                    </g>
+
+                    <line class="anatomy-part" data-name="Fémur" x1="80" y1="302" x2="80" y2="405" stroke="#f1f5f9" stroke-width="6.5" stroke-linecap="round"/>
+                    <circle class="anatomy-part" data-name="Rótula" fill="#cbd5e1" cx="80" cy="416" r="4.5"/>
+                    <line class="anatomy-part" data-name="Tibia y Peroné" x1="80" y1="424" x2="80" y2="473" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+                    <rect class="anatomy-part" data-name="Tarsos (Tobillo)" fill="#64748b" x="73" y="475" width="14" height="4" rx="1"/>
+                    
+                    <g class="anatomy-part" data-name="Tarsos y Falanges (Pie)">
+                        <line x1="85" y1="479" x2="85" y2="495" stroke="#f1f5f9" stroke-width="2.2" stroke-linecap="round"/>
+                        <line x1="81" y1="479" x2="81" y2="496" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
+                        <line x1="78" y1="479" x2="78" y2="494" stroke="#f1f5f9" stroke-width="1.4" stroke-linecap="round"/>
+                        <line x1="75" y1="479" x2="75" y2="492" stroke="#cbd5e1" stroke-width="1.3" stroke-linecap="round"/>
+                        <line x1="72" y1="479" x2="70" y2="489" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
+                    </g>
+
+                    <line class="anatomy-part" data-name="Fémur" x1="120" y1="302" x2="120" y2="405" stroke="#f1f5f9" stroke-width="6.5" stroke-linecap="round"/>
+                    <circle class="anatomy-part" data-name="Rótula" fill="#cbd5e1" cx="120" cy="416" r="4.5"/>
+                    <line class="anatomy-part" data-name="Tibia y Peroné" x1="120" y1="424" x2="120" y2="473" stroke="#94a3b8" stroke-width="5" stroke-linecap="round"/>
+                    <rect class="anatomy-part" data-name="Tarsos (Tobillo)" fill="#64748b" x="113" y="475" width="14" height="4" rx="1"/>
+                    
+                    <g class="anatomy-part" data-name="Tarsos y Falanges (Pie)">
+                        <line x1="115" y1="479" x2="115" y2="495" stroke="#f1f5f9" stroke-width="2.2" stroke-linecap="round"/>
+                        <line x1="119" y1="479" x2="119" y2="496" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
+                        <line x1="122" y1="479" x2="122" y2="494" stroke="#f1f5f9" stroke-width="1.4" stroke-linecap="round"/>
+                        <line x1="125" y1="479" x2="125" y2="492" stroke="#cbd5e1" stroke-width="1.3" stroke-linecap="round"/>
+                        <line x1="128" y1="479" x2="130" y2="489" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
+                    </g>
+                </svg>
+            </div>
+        </div>
+
+        <div class="right-sidebar">
+            <div class="brand-title">Historial Clínico</div>
+            
+            <div class="clinical-card">
+                <div class="system-badge" id="active-layer-badge">Capa: PIEL</div>
+                <h2 class="part-header" id="part-title">Organismo Humano</h2>
+                <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 15px;">Mapeo Completo // Estado Sistémico: OK</p>
+                
+                <div id="part-info-content">
+                    <p class="info-block">Selecciona cualquier parte del cuerpo u órgano específico en el visualizador central para desglosar su información anatómica interna.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script {nonce}>
+        const medicalData = {
+            "Ojos": {
+                piel: "Protegidos externamente por los párpados y las pestañas.",
+                organos: "Órganos fotorreceptores visuales. Contienen la retina, el cristalino y el humor vítreo; procesan la luz y envían señales por el nervio óptico.",
+                huesos: "Alojados dentro de las órbitas oculares formadas por los huesos frontal, cigomático, maxilar y esfenoides."
+            },
+            "Nariz": {
+                piel: "Plano cutáneo nasal con glándulas sebáceas abundantes.",
+                organos: "Cavidad nasal. Sede del epitelio olfatorio para la detección de aromas y encargada de filtrar, calentar y humedecer el aire inspirado.",
+                huesos: "Soportada por los huesos nasales propios y el cartílago del tabique."
+            },
+            "Boca y Cavidad Oral": {
+                piel: "Transición mucosa en la línea de los labios.",
+                organos: "Inicio del sistema digestivo. Alberga la lengua y glándulas salivales, responsable de la masticación, deglución y fonación.",
+                huesos: "Delimitada por el maxilar superior y la mandíbula inferior."
+            },
+            "Tímpanos (Oído Interno)": {
+                piel: "Conducto auditivo externo recubierto de piel fina.",
+                organos: "Membrana timpánica y estructuras del oído medio/interno. Transmutan las ondas acústicas aéreas en vibraciones mecánicas.",
+                huesos: "Excavados profundamente dentro de la porción petrosa del hueso temporal."
+            },
+            "Cerebro (Córtex)": {
+                piel: "Protegido exteriormente por el cuero cabelludo.",
+                organos: "Corteza cerebral superior. Gobierna las funciones cognitivas complejas, la memoria, el lenguaje y el procesamiento sensorial consciente.",
+                huesos: "Resguardado directamente bajo los huesos frontal, parietal, temporal y occipital del cráneo."
+            },
+            "Diencéfalo y Sistema Límbico": {
+                piel: "No tiene correspondencia superficial o externa.",
+                organos: "Núcleo profundo que integra el tálamo, el hipotálamo y la amígdala. Es el eje central de las emociones y la homeostasis.",
+                huesos: "Se asienta por encima de la silla turca del hueso esfenoides."
+            },
+            "Cerebelo": {
+                piel: "Proximidad con los planos de la piel de la región occipital/nuca inferior.",
+                organos: "Estructura posterior encargada de la coordinación motora fina y el mantenimiento del equilibrio.",
+                huesos: "Ubicado en la fosa craneal posterior, debajo de la tienda del cerebelo."
+            },
+            "Cabeza": { piel: "Piel facial y cuero cabelludo.", organos: "Estructuras sensoriales cefálicas.", huesos: "Huesos craneales." },
+            "Cráneo": { piel: "Plano cutáneo frontal, parietal y temporomandibular.", organos: "Bóveda rígida protectora del encéfalo y soporte sensitivo.", huesos: "Estructura ósea compuesta por 8 huesos craneales y 14 faciales. Incluye las órbitas oculares y la cavidad piriforme nasal." },
+            "Cuello": { piel: "Plano elástico cervical.", organos: "Laringe, faringe y tiroides.", huesos: "Vértebras cervicales." },
+            "Hombro Izquierdo": { piel: "Zona deltoidea izquierda.", organos: "Bolsa sinovial subacromial.", huesos: "Clavícula distal." },
+            "Hombro Derecho": { piel: "Zona deltoidea derecha.", organos: "Bolsa sinovial subacromial.", huesos: "Clavícula distal." },
+            "Pecho y Tórax": { piel: "Epidermis de la pared torácica anterior.", organos: "Barrera mecánica cardiorrespiratoria.", huesos: "Parrilla costal y esternón." },
+            "Abdomen": { piel: "Pared epidérmica flexible abdominal.", organos: "Músculos del peritoneo anterior.", huesos: "Sin soporte óseo directo." },
+            "Pelvis": { piel: "Región inguinal e hipogástrica.", organos: "Suelo pélvico anterior.", huesos: "Pubis y crestas ilíacas." },
+            "Brazo Izquierdo": { piel: "Epidermis braquial izquierda.", organos: "Músculos profundos (Bíceps y Braquial).", huesos: "Húmero izquierdo." },
+            "Brazo Derecho": { piel: "Epidermis braquial derecha.", organos: "Músculos profundos (Bíceps y Braquial).", huesos: "Húmero derecho." },
+            "Antebrazo Izquierdo": { piel: "Superficie cutánea antebraquial.", organos: "Tendones y vientres flexo-extensores.", huesos: "Radio y Cúbito." },
+            "Antebrazo Derecho": { piel: "Superficie cutánea antebraquial.", organos: "Tendones y vientres flexo-extensores.", huesos: "Radio y Cúbito." },
+            "Mano Izquierda": { piel: "Piel palmar gruesa y glabra.", organos: "Mecanoreceptores táctiles izquierdos.", huesos: "Metacarpos." },
+            "Mano Derecho": { piel: "Piel palmar gruesa y glabra.", organos: "Mecanoreceptores táctiles derechos.", huesos: "Metacarpos." },
+            "Muslo Izquierdo": { piel: "Tejido epidérmico femoral.", organos: "Cuádriceps femoral izquierdo.", huesos: "Fémur izquierdo." },
+            "Muslo Derecho": { piel: "Tejido epidérmico femoral.", organos: "Cuádriceps femoral derecho.", huesos: "Fémur derecho." },
+            "Rodilla Izquierda": { piel: "Estrato córneo engrosado.", organos: "Tendón y bolsa rotuliana.", huesos: "Rótula ósea." },
+            "Rodilla Derecha": { piel: "Estrato córneo engrosado.", organos: "Tendón y bolsa rotuliana.", huesos: "Rótula ósea." },
+            "Pantorrilla Izquierda": { piel: "Zona sural posterior izquierda.", organos: "Músculos gastrocnemios.", huesos: "Tibia anterior." },
+            "Pantorrilla Derecho": { piel: "Zona sural posterior derecha.", organos: "Músculos gastrocnemios.", huesos: "Tibia anterior." },
+            "Pie Izquierdo": { piel: "Epidermis plantar izquierda.", organos: "Fascia plantar.", huesos: "Tarsos y metatarsos." },
+            "Pie Derecho": { piel: "Epidermis plantar derecha.", organos: "Fascia plantar.", huesos: "Tarsos y metatarsos." },
+            "Tronco Encefálico": { piel: "Profundamente en la nuca.", organos: "Ciclos vitales automáticos.", huesos: "Foramen magno." },
+            "Tráquea": { piel: "Bajo cartílago tiroides.", organos: "Transporte de oxígeno.", huesos: "Anclaje cervical." },
+            "Pulmones": { piel: "Pared costal.", organos: "Hematosis gaseosa.", huesos: "Caja torácica." },
+            "Corazón": { piel: "Subesternal izquierdo.", organos: "Bomba miocárdica.", huesos: "Mediastino." },
+            "Hígado": { piel: "Cuadrante superior derecho.", organos: "Filtro metabólico.", huesos: "Parrilla costal." },
+            "Estómago": { piel: "Hipocondrio izquierdo.", organos: "Digestión por ácido.", huesos: "Costillas falsas." },
+            "Páncreas": { piel: "Retroperitoneal.", organos: "Insulina y exocrina.", huesos: "Vértebras lumbares." },
+            "Riñones": { piel: "Región lumbar posterior.", organos: "Filtración por nefronas.", huesos: "Costillas 11 y 12." },
+            "Intestino Grueso": { piel: "Perímetro abdominal.", organos: "Absorción hídrica.", huesos: "Crestas ilíacas." },
+            "Intestino Delgado": { piel: "Zona umbilical.", organos: "Absorción de nutrientes.", huesos: "Plano lumbar." },
+            "Vejiga": { piel: "Región suprapúbica.", organos: "Almacén de orina.", huesos: "Sínfisis púbica." },
+            "Aparato Reproductor Masculino": { piel: "Escrotal externa.", organos: "Gónadas masculinas.", huesos: "Arco del pubis." },
+            "Útero y Ovarios": { piel: "Hipogástrica profunda.", organos: "Estructuras gestacionales.", huesos: "Canal pélvico." },
+            "Falanges (Dedos)": { piel: "Tejido dactilar con terminaciones nerviosas y huellas dactilares.", organos: "Haces neurovasculares digitales y lechos ungueales.", huesos: "Falange proximal, media y distal (excluyendo el pulgar)." },
+            "Tarsos y Falanges (Pie)": { piel: "Estrato córneo protector plantar y dactilar.", organos: "Músculos lumbricales del pie y tendones flexores.", huesos: "Metatarsos y falanges podales del 1º al 5º metatarsiano." }
+        };
+
+        let currentSystem = 'piel';
+        let currentRotation = 0;
+
+        document.querySelectorAll('.anatomy-part').forEach(part => {
+            part.addEventListener('click', (e) => {
+                e.stopPropagation();
+                
+                const name = part.getAttribute('data-name');
+                if (!name) return;
+
+                const data = medicalData[name];
+                document.getElementById('part-title').innerText = name;
+                
+                let infoHTML = '';
+                if (data) {
+                    infoHTML += `<div class="info-block"><strong>Capa Cutánea / Superficial:</strong> ${data.piel || 'No registrado.'}</div>`;
+                    infoHTML += `<div class="info-block"><strong>Componente Visceral / Función:</strong> ${data.organos || 'No registrado.'}</div>`;
+                    infoHTML += `<div class="info-block"><strong>Estructura Ósea / Anclaje:</strong> ${data.huesos || 'No registrado.'}</div>`;
+                } else {
+                    infoHTML = `<p class="info-block">Región: ${name}. Mapeo activo.</p>`;
+                }
+                
+                document.getElementById('part-info-content').innerHTML = infoHTML;
+            });
+        });
+
+        function changeGender(gender) {
+            document.body.setAttribute('data-current-gender', gender);
+            document.getElementById('btn-gen-masc').classList.toggle('active', gender === 'masculino');
+            document.getElementById('btn-gen-fem').classList.toggle('active', gender === 'femenino');
+        }
+
+        function changeActiveSystem(systemId, button) {
+            currentSystem = systemId;
+            document.querySelectorAll('.layer-view').forEach(view => view.classList.remove('active'));
+            document.getElementById(`view-${systemId}`).classList.add('active');
+            document.getElementById('active-layer-badge').innerText = `Capa: ${systemId.toUpperCase()}`;
+
+            const parent = button.parentElement;
+            parent.querySelectorAll('.sys-button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+        }
+
+        function toggleRotation() {
+            currentRotation = currentRotation === 0 ? 180 : 0;
+            const wrapper = document.getElementById('cuerpo-interactivo');
+            const hud = document.getElementById('hud-angle');
+
+            wrapper.style.transform = `rotateY(${currentRotation}deg)`;
+            
+            if(currentRotation === 180) {
+                wrapper.setAttribute('data-view', 'posterior');
+                hud.innerText = "Orientación: Vista Posterior (180°)";
+            } else {
+                wrapper.setAttribute('data-view', 'frontal');
+                hud.innerText = "Orientación: Vista Frontal (0°)";
+            }
+        }
+    </script>
+</body>
+</html>
